@@ -1,0 +1,246 @@
+---
+title: Warming and watering cause early CO~2~ efflux from biocrust soils but varying
+  effects after 9 years of warming and cessation of watering
+author: "Anthony Darrouzet-Nardi, Sasha Reed, Ed Grote, Jayne Belnap"
+output:
+  word_document: default
+  html_document: default
+---
+
+###RESULTS
+`r fig = 0`
+
+```{r setup, include = FALSE}
+#devtools::install_github("anthonydn/treateffect@bfaf6ba") #uncomment to install the package
+library(treateffect)
+library(lubridate)
+
+knitr::opts_chunk$set(echo = FALSE, results = 'hide', message = FALSE, warning = FALSE)
+
+proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
+
+load(paste0(proj_dir, "acimp06071314.Rdata"))
+theme_te()
+doec <- c("black","red","blue","purple")
+
+acimp_all <- full_join(acimp0607, full_join(acimp13, acimp14)) %>% 
+  select(-contains("before"), -contains("after"))
+```
+
+```{r rainfall_table, include = FALSE, results = 'show'}
+rainfall <- readr::read_csv(paste0(proj_dir, "rain_tipping_bucket_all_years.csv"))
+
+rainfall %>% 
+  group_by(year = year(time)) %>% 
+  filter(year != 2005, year < 2015) %>% 
+  summarise(rain_annual = sum(rain, na.rm = TRUE))
+
+rainfall %>% 
+  group_by(year = year(time)) %>% 
+  filter(year != 2005, year < 2015) %>% 
+  filter(yday(time) >= 80, yday(time) <= 173) %>% 
+  summarise(rain_annual = sum(rain, na.rm = TRUE))
+
+
+```
+
+```{r all_data, fig.width=9, fig.height=4}
+all_data <- acimp_all %>% 
+  select(datetime, C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5) %>% 
+  gather(variable, value, -datetime) %>% 
+  mutate(variable = ordered(variable, unique(variable))) %>% 
+  separate(variable, c("treatment", "block")) %>% 
+  mutate(treatment = ordered(treatment, levels = c("C", "L", "W", "LW")),
+    doy = yday(datetime), year = year(datetime)) %>% 
+  group_by(year, doy, treatment, block) %>% 
+  summarise(daily = mean(value))
+
+waterdays <- read.delim(pasteo(proj_dir, "0607wateringdays.txt"), string = F) %>% 
+    mutate(year = year(waterdays), doy = yday(waterdays)) 
+
+all_data %>% 
+  ungroup %>% group_by(year, doy, treatment) %>% 
+  summarise(n = n(), mean = mean(daily), se = CI68(daily)) %>% 
+ggplot(aes(doy, mean, col = treatment)) +
+  geom_vline(data = waterdays, aes(xintercept = doy, gr = factor(year)), col = "blue") +
+  geom_hline(yintercept = 0, col = "gray", size = 1.3) +
+  geom_line(lwd = 0.5) +
+  geom_ribbon(aes(doy, ymin = mean - se, ymax = mean + se, 
+    fill = treatment, alpha = 0.5, col = NA)) +
+  scale_color_manual(values = doec) +
+  scale_fill_manual(values = doec) +
+  facet_grid(year ~ ., scales = "fixed")
+
+all_data.te <- all_data %>% 
+  treateffect(daily ~ treatment | year, time = "doy")
+plotdiff(all_data.te, panel.eq = year ~ comparison, treatcol = doec[-1])
+
+fig = fig + 1
+
+rainfall %>% 
+  filter(year(time) %in% c(2006, 2007, 2013, 2014), rain != 0) %>%
+  group_by(year = year(time), doy = yday(time)) %>% 
+  summarise(rain24h = sum(rain, na.rm = TRUE)) %>% View
+ggplot(aes(doy, rain24h)) +
+  geom_bar(stat = "identity", col = NA, fill = "navyblue") + 
+  facet_grid(year ~ .)
+
+
+
+```
+
+```{r rain_events, fig.width=4, fig.height=4}
+rain06 <- acimp0607 %>% 
+  select(datetime, C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5) %>% 
+  gather(variable, value, -datetime) %>% 
+  mutate(variable = ordered(variable, unique(variable))) %>% 
+  filter(datetime >= as.POSIXct("2006-10-01"), datetime < as.POSIXct("2006-10-17")) %>%
+  separate(variable, c("treatment", "block")) %>% 
+  group_by(datetime, treatment) %>% 
+  summarise(mean = mean(value), se = CI68(value)) %>% 
+  mutate(treatment = ordered(treatment, levels = c("C", "L", "W", "LW")))
+
+ggplot(rain06, aes(datetime, mean, col = treatment)) +
+  geom_hline(yintercept = 0, col = "gray", size = 1.3) +
+  geom_line(lwd = 0.5) +
+  scale_color_manual(values = doec) +
+  geom_ribbon(aes(datetime, ymin = mean - se, ymax = mean + se, 
+    fill = treatment, alpha = 0.5, col = NA)) +
+  scale_fill_manual(values = doec) +
+  facet_grid(treatment ~ .)
+
+rain06_minNSE <- rain06 %>% 
+  mutate(doy = yday(datetime)) %>% 
+  ungroup %>% group_by(doy, treatment) %>% 
+  mutate(min_NSE = min(mean)) %>% 
+  filter(mean == min_NSE)
+
+rainfall %>% 
+  group_by(date = date(time)) %>% 
+  filter(date >= as.Date("2006-10-01"), date < as.Date("2006-10-17")) %>%
+  summarise(rain24h = sum(rain, na.rm = TRUE))
+
+rain14 <- acimp14 %>% 
+  select(datetime, C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5,
+    airtemp, C_T5, PAR, rain, C_CSVW_2) %>% 
+  gather(variable, value, -datetime) %>% 
+  mutate(variable = ordered(variable, unique(variable))) %>% 
+  filter(datetime >= as.POSIXct("2014-08-11"), datetime < as.POSIXct("2014-08-27"),
+    !(variable %in% c("airtemp", "C_T5", "PAR", "rain", "C_CSVW_2"))) %>%
+  separate(variable, c("treatment", "block")) %>% 
+  group_by(datetime, treatment) %>% 
+  summarise(mean = mean(value), se = CI68(value)) %>% 
+  mutate(treatment = ordered(treatment, levels = c("C", "L", "W", "LW")))
+
+ggplot(rain14, aes(datetime, mean, col = treatment)) +
+  geom_hline(yintercept = 0, col = "gray", size = 1.3) +
+  geom_line(lwd = 0.5) +
+  scale_color_manual(values = doec) +
+  geom_ribbon(aes(datetime, ymin = mean - se, ymax = mean + se, 
+    fill = treatment, alpha = 0.5, col = NA)) +
+  scale_fill_manual(values = doec) +
+  facet_grid(treatment ~ .)
+
+rain14_minNSE <- rain14 %>% 
+  mutate(doy = yday(datetime)) %>% 
+  ungroup %>% group_by(doy, treatment) %>% 
+  mutate(min_NSE = min(mean)) %>% 
+  filter(mean == min_NSE)
+
+rainfall %>% 
+  group_by(date = date(time)) %>% 
+  filter(date >= as.Date("2014-08-11"), date < as.Date("2014-08-27")) %>%
+  summarise(rain24h = sum(rain, na.rm = TRUE))
+
+fig = fig + 1
+
+```
+
+```{r puffs, fig.width=4, fig.height=4}
+ac2006 <- readr::read_csv(paste0(proj_dir, "acfill_wide06_cleaned.csv")) %>% 
+  gather(tb, flux, -datetime) %>%
+  separate(tb, c("treatment", "block")) %>% 
+  mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST"))
+
+ac2012 <- readr::read_csv(paste0(proj_dir, "acfill_wide12_cleaned.csv")) %>% 
+  gather(treatment, flux, -datetime) %>% 
+  separate(treatment, c("treatment", "block")) %>%
+  mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
+  filter(datetime >= as.POSIXct("2012-05-01 00:00:00", "MST"))
+
+bind_rows(
+  filter(ac2006, yday(datetime) > 167, yday(datetime) < 198, 
+    block == "B2", treatment == "W"), 
+  filter(ac2012, yday(datetime) > 167, yday(datetime) < 198, 
+    year(datetime) != 2013, block == "B2", treatment == "W")) %>% 
+  mutate(year = year(datetime), yday = yday(datetime) + hour(datetime) / 24) %>% 
+ggplot(aes(yday, flux)) +
+  geom_line(col = "blue", lwd = 2) +
+  geom_vline(data = waterdays[c(8:18, 42:52),], aes(xintercept = doy, gr = factor(year)), col = "blue") +
+  facet_grid(year ~ .)
+
+fig = fig + 1
+
+
+```
+
+```{r NSE_7mo, fig.width=6, fig.height=3}
+NSE_7mo <- 
+  acimp_all %>%
+  filter(yday(datetime) > 49, yday(datetime) < 263) %>% 
+  mutate(year = year(datetime)) %>% 
+  select(year, C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5) %>% 
+  gather(tb, flux, -year) %>%
+  group_by(year, tb) %>% 
+  summarise(NSE_7mo = sum(flux) * 3600 * 12 / 1e6) %>% #umol m-2 s-1 to g C m-2 
+  separate(tb, c("treatment", "block")) %>%
+  mutate(treatment = ordered(treatment, c("C", "L", "W", "LW"))) %>% 
+  mutate(treatment = recode_factor(treatment, "C" = "CD", "L" = "LD", "W" = "CW")) %>% 
+  separate(treatment, sep = 1, c("warming", "watering"), remove = FALSE)
+
+NSE_7mo.te <- treateffect(NSE_7mo, NSE_7mo ~ treatment | year, comp_function = bootdiff)
+
+plot(NSE_7mo.te, treatcol = c(doec))
+
+#treateffect(NSE_7mo, NSE_7mo ~ treatment + warming + watering | year, comp_function = bootdiff)
+
+fig = fig + 1
+```
+
+```{r NSE_biocrust_active_wet_times, fig.width=6, fig.height=3}
+NSE_photo <- acimp_all %>%
+  mutate(year = year(datetime), doy = yday(datetime)) %>% 
+  select(datetime, year, doy, C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5) %>%
+  group_by(year, doy) %>% 
+  mutate(photo = min(C_B1, C_B2, C_B3, C_B4, C_B5, L_B1, L_B2, L_B3, L_B4, L_B5,
+    W_B1, W_B2, W_B3, W_B4, W_B5, LW_B1, LW_B2, LW_B3, LW_B4, LW_B5, na.rm = TRUE)) %>% 
+  filter(photo < -0.2)
+
+#photo days each year
+group_by(NSE_photo, year) %>% summarize(days = length(unique(doy)))
+
+NSE_photo.te <- NSE_photo %>% 
+  select(-photo) %>% 
+  gather(tb, flux, -year, -doy, -datetime) %>%
+  group_by(year, tb) %>% 
+  summarise(NSE_photo = sum(flux) * 3600 * 12 / 1e6) %>% 
+  separate(tb, c("treatment", "block")) %>%
+  mutate(treatment = ordered(treatment, c("C", "L", "W", "LW"))) %>% 
+  treateffect(NSE_photo ~ treatment|year, comp_function = bootdiff)
+
+plot(NSE_photo.te, treatcol = doec)
+
+with(NSE_photo.te$comparisons, mapply(function(a,b,c) 
+  paste("[", b, ", ", c, "]", sep =''), round(meandiff, 1), 
+  round(bootdiff_lo, 1), round(bootdiff_hi, 1))) %>% cat(., sep ='   ')
+
+fig = fig + 1
+```
+
+
+
