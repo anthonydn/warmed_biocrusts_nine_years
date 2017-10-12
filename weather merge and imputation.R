@@ -28,9 +28,11 @@
 library(tidyverse)
 library(lubridate)
 
-proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_years/"
+proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
+rcsv <- function(x) readr::read_csv(paste0(proj_dir, x))
 
-##Initial dataset assembly. Raw data not provided for this, but code is shown to document approach
+##Initial dataset assembly and cleaning. Raw data not provided for this, but code is shown to document approach
+
 # 2006 - import data that has been cleaned for C & L from 2015 Biogeochemistry paper
 # raw0607 <- readr::read_csv("C:/Dropbox/USGS Projects/Autochambers/Data/autochambers_2005to2007/Fourth and hopefully final cleaning of data/homer_marge_C_L_clean_only.csv") %>% 
 #   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
@@ -47,8 +49,8 @@ proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_year
 #     row.names = F, na = "")
 # 
 # # 2012 -import data, combine homer and marge
-# marge.raw <- rexc("Marge2012.xlsx",2)
-# homer.raw <- rexc("Homer2012.xlsx",2) %>% unique #homer had some duplicated rows
+# marge.raw <- rcsv("Marge2012.csv",2)
+# homer.raw <- rcsv("Homer2012.csv",2) %>% unique #homer had some duplicated rows
 # marge.raw$system <- "marge"
 # homer.raw$system <- "homer"
 # ac2012.raw <- rbind(marge.raw, homer.raw) %>% 
@@ -62,7 +64,7 @@ proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_year
 #     system = rep(c("homer", "marge"), ea = 10 * length(ds)),
 #     chamber = rep(1:10, 2, ea = length(ds))) %>% 
 #   left_join(ac2012.raw) %>%
-#   left_join(rexc("chamber codes.xlsx")) %>%
+#   left_join(rcsv("chamber codes.csv")) %>%
 #   arrange(datetime, block, treatment) %>%
 #   select(datetime, block, treatment, flux) %>%
 #   unite(tb, treatment, block) %>% 
@@ -76,28 +78,28 @@ proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_year
 #####WEATHER MERGE
 
 ## 2006
-ac2006 <- readr::read_csv(paste0(proj_dir, "acfill_wide06_cleaned.csv")) %>% 
+ac2006 <- rcsv("acfill_wide06_cleaned.csv") %>% 
   gather(tb, flux, -datetime) %>%
   separate(tb, c("treatment", "block")) %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST"))
 
-weather2006 <- rexc("SoilMet_0607.xlsx") %>% 
+weather2006 <- rcsv("SoilMet_0607.csv") %>% 
   filter(!(minute(datetime) %in% 29:30)) %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST"), 
     date = date(datetime)) %>% 
   select(datetime, airtemp = airtemp, Rh = Rh, windspeed = windspeed, 
     rain = rain) %>%
-  left_join(rexc("PAR0607.xlsx") %>% 
+  left_join(rcsv("PAR0607.csv") %>% 
     transmute(datetime = round_date(hour, "hour") %>% force_tz("MST"), PAR)) %>% 
   group_by(date = date(datetime)) %>% 
   mutate(rain = sum(rain, na.rm = TRUE)) %>% 
   ungroup %>% 
-  left_join(rexc("castle_valley_weather.xlsx") %>% 
+  left_join(rcsv("castle_valley_weather.csv") %>% 
   transmute(date = force_tz(date(date), "MST"), castle_temp_max = (temp_max-32)/1.8,
     castle_temp_min = (temp_min-32)/1.8,
-    castle_temp = (temp-32)/1.8)) %>% 
+    castle_temp = (temp-32)/1.8))
 
-soil_temp_moist2006 <- rexc("SoilMet_0607.xlsx") %>% 
+soil_temp_moist2006 <- rcsv("SoilMet_0607.csv") %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   select(datetime, contains("T_5"), contains("T_15"), contains("CVW"),
     -contains("CC")) %>%
@@ -111,13 +113,14 @@ soil_temp_moist2006 <- rexc("SoilMet_0607.xlsx") %>%
   ungroup
 
 ## 2012
-ac2012 <- rexc("acfill_wide12_cleaned.xlsx") %>%
+ac2012 <- rcsv("acfill_wide12_cleaned.csv") %>%
   gather(treatment, flux, -datetime) %>% 
+  mutate(flux = as.numeric(flux)) %>% 
   separate(treatment, c("treatment", "block")) %>%
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   filter(datetime >= as.POSIXct("2012-05-01 00:00:00", "MST"))
 
-weather2012 <- rexc("weather2012.xlsx") %>%
+weather2012 <- rcsv("weather2012.csv") %>%
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   select(datetime, airtemp = AirTemp, Rh = RH, windspeed = WindSpd,
     PAR = PAR_A, rain = Rain_mm) %>%  
@@ -125,7 +128,7 @@ weather2012 <- rexc("weather2012.xlsx") %>%
   mutate(rain = sum(rain, na.rm = TRUE)) %>% 
   ungroup
 
-soil_temp_moist2012 <- rexc("SoilMet_1203to1412.xlsx", 2) %>%
+soil_temp_moist2012 <- rcsv("SoilMet_1203to1412.csv") %>%
   mutate(datetime = round_date(TIMESTAMP, "hour") %>% force_tz("MST")) %>%
   select(datetime, contains("T_5"), contains("T_10"), contains("CVW_2"),
     contains("CSVW_2"), -contains("Peri"),
@@ -202,7 +205,13 @@ acimp0607 <- bind_cols(acimp0607_preimpute["datetime"], acimp0607_raw$ximp)
 acimp13 <- bind_cols(acimp13_preimpute["datetime"], acimp13_raw$ximp)
 acimp14 <- bind_cols(acimp14_preimpute["datetime"], acimp14_raw$ximp)
 
-save(acimp0607_raw, acimp13_raw, acimp14_raw, acimp0607, acimp13, acimp14, file = paste(proj_dir, "acimp061314.Rdata", sep = ''))
+#save(acimp0607_raw, acimp13_raw, acimp14_raw, acimp0607, acimp13, acimp14, file = paste(proj_dir, "acimp061314.Rdata", sep = ''))
+
+
+
+
+
+
 
 
 

@@ -3,12 +3,9 @@ title: Warming and watering cause early CO~2~ efflux from biocrust soils but var
   effects after 9 years of warming and cessation of watering
 author: "Anthony Darrouzet-Nardi, Sasha Reed, Ed Grote, Jayne Belnap"
 output:
-  word_document: default
   html_document: default
+  word_document: default
 ---
-
-###RESULTS
-`r fig = 0`
 
 ```{r setup, include = FALSE}
 #devtools::install_github("anthonydn/treateffect@bfaf6ba") #uncomment to install the package
@@ -17,7 +14,7 @@ library(lubridate)
 
 knitr::opts_chunk$set(echo = FALSE, results = 'hide', message = FALSE, warning = FALSE)
 
-proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_years/"
+proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
 
 theme_te()
 doec <- c("black","red","blue","purple")
