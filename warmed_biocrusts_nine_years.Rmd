@@ -19,9 +19,12 @@ knitr::opts_chunk$set(echo = FALSE, results = 'hide', message = FALSE, warning =
 
 proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
 
-load(paste0(proj_dir, "acimp06071314.Rdata"))
 theme_te()
 doec <- c("black","red","blue","purple")
+
+acimp0607 <- readr::read_csv(paste0(proj_dir, "acimp0607.csv"))
+acimp13 <- readr::read_csv(paste0(proj_dir, "acimp13.csv"))
+acimp14 <- readr::read_csv(paste0(proj_dir, "acimp14.csv"))
 
 acimp_all <- full_join(acimp0607, full_join(acimp13, acimp14)) %>% 
   select(-contains("before"), -contains("after"))
@@ -40,8 +43,6 @@ rainfall %>%
   filter(year != 2005, year < 2015) %>% 
   filter(yday(time) >= 80, yday(time) <= 173) %>% 
   summarise(rain_annual = sum(rain, na.rm = TRUE))
-
-
 ```
 
 ```{r all_data, fig.width=9, fig.height=4}
