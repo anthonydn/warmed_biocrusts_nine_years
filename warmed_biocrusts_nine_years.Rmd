@@ -17,7 +17,7 @@ library(lubridate)
 
 knitr::opts_chunk$set(echo = FALSE, results = 'hide', message = FALSE, warning = FALSE)
 
-proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
+proj_dir <- "https://anthony.darrouzet-nardi.net/data/warmed_biocrusts_nine_years/"
 
 theme_te()
 doec <- c("black","red","blue","purple")
@@ -162,6 +162,7 @@ ac2006 <- readr::read_csv(paste0(proj_dir, "acfill_wide06_cleaned.csv")) %>%
 
 ac2012 <- readr::read_csv(paste0(proj_dir, "acfill_wide12_cleaned.csv")) %>% 
   gather(treatment, flux, -datetime) %>% 
+  mutate(flux = as.numeric(flux)) %>% 
   separate(treatment, c("treatment", "block")) %>%
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   filter(datetime >= as.POSIXct("2012-05-01 00:00:00", "MST"))
@@ -197,9 +198,7 @@ NSE_7mo.te <- treateffect(NSE_7mo, NSE_7mo ~ treatment | year, comp_function = b
 
 plot(NSE_7mo.te, treatcol = c(doec))
 
-#treateffect(NSE_7mo, NSE_7mo ~ treatment + warming + watering | year, comp_function = bootdiff)
-
-fig = fig + 1
+treateffect(NSE_7mo, NSE_7mo ~ treatment + warming + watering | year, comp_function = bootdiff)
 ```
 
 ```{r NSE_biocrust_active_wet_times, fig.width=6, fig.height=3}
@@ -225,12 +224,6 @@ NSE_photo.te <- NSE_photo %>%
   treateffect(NSE_photo ~ treatment|year, comp_function = bootdiff)
 
 plot(NSE_photo.te, treatcol = doec)
-
-with(NSE_photo.te$comparisons, mapply(function(a,b,c) 
-  paste("[", b, ", ", c, "]", sep =''), round(meandiff, 1), 
-  round(bootdiff_lo, 1), round(bootdiff_hi, 1))) %>% cat(., sep ='   ')
-
-fig = fig + 1
 ```
 
 
