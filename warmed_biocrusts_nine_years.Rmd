@@ -33,11 +33,13 @@ acimp_all <- full_join(acimp0607, full_join(acimp13, acimp14)) %>%
 ```{r rainfall_table, include = FALSE, results = 'show'}
 rainfall <- readr::read_csv(paste0(proj_dir, "rain_tipping_bucket_all_years.csv"))
 
+#annual
 rainfall %>% 
   group_by(year = year(time)) %>% 
   filter(year != 2005, year < 2015) %>% 
   summarise(rain_annual = sum(rain, na.rm = TRUE))
 
+#spring
 rainfall %>% 
   group_by(year = year(time)) %>% 
   filter(year != 2005, year < 2015) %>% 
@@ -57,7 +59,7 @@ all_data <- acimp_all %>%
   group_by(year, doy, treatment, block) %>% 
   summarise(daily = mean(value))
 
-waterdays <- read.delim(pasteo(proj_dir, "0607wateringdays.txt"), string = F) %>% 
+waterdays <- read.delim(paste0(proj_dir, "0607wateringdays.txt"), string = F) %>% 
     mutate(year = year(waterdays), doy = yday(waterdays)) 
 
 all_data %>% 
@@ -77,18 +79,13 @@ all_data.te <- all_data %>%
   treateffect(daily ~ treatment | year, time = "doy")
 plotdiff(all_data.te, panel.eq = year ~ comparison, treatcol = doec[-1])
 
-fig = fig + 1
-
 rainfall %>% 
   filter(year(time) %in% c(2006, 2007, 2013, 2014), rain != 0) %>%
   group_by(year = year(time), doy = yday(time)) %>% 
-  summarise(rain24h = sum(rain, na.rm = TRUE)) %>% View
+  summarise(rain24h = sum(rain, na.rm = TRUE)) %>% 
 ggplot(aes(doy, rain24h)) +
   geom_bar(stat = "identity", col = NA, fill = "navyblue") + 
   facet_grid(year ~ .)
-
-
-
 ```
 
 ```{r rain_events, fig.width=4, fig.height=4}
@@ -155,9 +152,6 @@ rainfall %>%
   group_by(date = date(time)) %>% 
   filter(date >= as.Date("2014-08-11"), date < as.Date("2014-08-27")) %>%
   summarise(rain24h = sum(rain, na.rm = TRUE))
-
-fig = fig + 1
-
 ```
 
 ```{r puffs, fig.width=4, fig.height=4}
@@ -182,10 +176,6 @@ ggplot(aes(yday, flux)) +
   geom_line(col = "blue", lwd = 2) +
   geom_vline(data = waterdays[c(8:18, 42:52),], aes(xintercept = doy, gr = factor(year)), col = "blue") +
   facet_grid(year ~ .)
-
-fig = fig + 1
-
-
 ```
 
 ```{r NSE_7mo, fig.width=6, fig.height=3}
