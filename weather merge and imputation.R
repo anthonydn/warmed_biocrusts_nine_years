@@ -27,49 +27,47 @@
 
 library(tidyverse)
 library(lubridate)
+library(readr)
+library(readxl)
 
-proj_dir <- "https://raw.github.com/anthonydn/warmed_biocrusts_nine_years/master/data/"
-rcsv <- function(x) readr::read_csv(paste0(proj_dir, x))
-
-##Initial dataset assembly and cleaning. Raw data not provided for this, but code is shown to document approach
+##Initial dataset assembly and cleaning
 
 # 2006 - import data that has been cleaned for C & L from 2015 Biogeochemistry paper
-# raw0607 <- readr::read_csv("C:/Dropbox/USGS Projects/Autochambers/Data/autochambers_2005to2007/Fourth and hopefully final cleaning of data/homer_marge_C_L_clean_only.csv") %>% 
-#   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
-#   unite(tb, treatment, block) %>% 
-#   unique
-# 
-# # 2006 - join to a skeleton frame with all time points present and export for cleaning
-# ds <- seq(min(raw0607$datetime), max(raw0607$datetime), by = "hour")
-# acfill_wide <- 
-#   data.frame(datetime = rep(ds, 20), tb = rep(unique(raw0607$tb), ea = length(ds))) %>% 
-#   left_join(raw0607) %>%
-#   spread(tb, flux) %>% 
-#   write.csv("C:/Dropbox/USGS Projects/Autochambers/Data/autochambers_2005to2007/Fourth and hopefully final cleaning of data/acfill_wide06.csv",
-#     row.names = F, na = "")
-# 
-# # 2012 -import data, combine homer and marge
-# marge.raw <- rcsv("Marge2012.csv",2)
-# homer.raw <- rcsv("Homer2012.csv",2) %>% unique #homer had some duplicated rows
-# marge.raw$system <- "marge"
-# homer.raw$system <- "homer"
-# ac2012.raw <- rbind(marge.raw, homer.raw) %>% 
-#   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>%
-#   select(datetime, system, chamber, flux)
-# 
-# # 2012 - create data frame with rows for every hour in the measurement period
-# ds <- seq(min(ac2012.raw$datetime), max(ac2012.raw$datetime), by = "hour")
-# acfill_wide <- data.frame(
-#     datetime = rep(ds, 20),
-#     system = rep(c("homer", "marge"), ea = 10 * length(ds)),
-#     chamber = rep(1:10, 2, ea = length(ds))) %>% 
-#   left_join(ac2012.raw) %>%
-#   left_join(rcsv("chamber codes.csv")) %>%
-#   arrange(datetime, block, treatment) %>%
-#   select(datetime, block, treatment, flux) %>%
-#   unite(tb, treatment, block) %>% 
-#   spread(tb, flux)
-# 
+raw0607 <- read_csv("homer_marge_C_L_clean_only.csv") %>%
+  mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>%
+  unite(tb, treatment, block) %>%
+  unique
+
+# 2006 - join to a skeleton frame with all time points present and export for cleaning
+ds <- seq(min(raw0607$datetime), max(raw0607$datetime), by = "hour")
+acfill_wide <-
+  data.frame(datetime = rep(ds, 20), tb = rep(unique(raw0607$tb), ea = length(ds))) %>%
+  left_join(raw0607) %>%
+  spread(tb, flux)
+#write.csv(acfill_wide, "acfill_wide06.csv", row.names = F, na = "")
+
+# 2012 -import data, combine homer and marge
+marge.raw <- read_excel("Marge2012.xlsx",2)
+homer.raw <- read_excel("Homer2012.xlsx",2) %>% unique #homer had some duplicated rows
+marge.raw$system <- "marge"
+homer.raw$system <- "homer"
+ac2012.raw <- rbind(marge.raw, homer.raw) %>%
+  mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>%
+  select(datetime, system, chamber, flux)
+
+# 2012 - create data frame with rows for every hour in the measurement period
+ds <- seq(min(ac2012.raw$datetime), max(ac2012.raw$datetime), by = "hour")
+acfill_wide <- data.frame(
+  datetime = rep(ds, 20),
+  system = rep(c("homer", "marge"), ea = 10 * length(ds)),
+  chamber = rep(1:10, 2, ea = length(ds))) %>%
+  left_join(ac2012.raw) %>%
+  left_join(read_excel("chamber codes.xlsx")) %>%
+  arrange(datetime, block, treatment) %>%
+  select(datetime, block, treatment, flux) %>%
+  unite(tb, treatment, block) %>%
+  spread(tb, flux)
+
 # write.csv(acfill_wide, paste(proj_dir, "acfill_wide.csv", sep = ''), row.names = F)
 
 ### AT THIS POINT IN THE SCRIPT, I HAND-PROCESSED THE DATA TO ELIMINATE BAD POINTS
@@ -78,28 +76,28 @@ rcsv <- function(x) readr::read_csv(paste0(proj_dir, x))
 #####WEATHER MERGE
 
 ## 2006
-ac2006 <- rcsv("acfill_wide06_cleaned.csv") %>% 
+ac2006 <- read_csv("acfill_wide06_cleaned.csv") %>% 
   gather(tb, flux, -datetime) %>%
   separate(tb, c("treatment", "block")) %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST"))
 
-weather2006 <- rcsv("SoilMet_0607.csv") %>% 
+weather2006 <- read_csv("SoilMet_0607.csv") %>% 
   filter(!(minute(datetime) %in% 29:30)) %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST"), 
     date = date(datetime)) %>% 
   select(datetime, airtemp = airtemp, Rh = Rh, windspeed = windspeed, 
     rain = rain) %>%
-  left_join(rcsv("PAR0607.csv") %>% 
+  left_join(read_csv("PAR0607.csv") %>% 
     transmute(datetime = round_date(hour, "hour") %>% force_tz("MST"), PAR)) %>% 
   group_by(date = date(datetime)) %>% 
   mutate(rain = sum(rain, na.rm = TRUE)) %>% 
   ungroup %>% 
-  left_join(rcsv("castle_valley_weather.csv") %>% 
+  left_join(read_csv("castle_valley_weather.csv") %>% 
   transmute(date = force_tz(date(date), "MST"), castle_temp_max = (temp_max-32)/1.8,
     castle_temp_min = (temp_min-32)/1.8,
     castle_temp = (temp-32)/1.8))
 
-soil_temp_moist2006 <- rcsv("SoilMet_0607.csv") %>% 
+soil_temp_moist2006 <- read_csv("SoilMet_0607.csv") %>% 
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   select(datetime, contains("T_5"), contains("T_15"), contains("CVW"),
     -contains("CC")) %>%
@@ -113,14 +111,14 @@ soil_temp_moist2006 <- rcsv("SoilMet_0607.csv") %>%
   ungroup
 
 ## 2012
-ac2012 <- rcsv("acfill_wide12_cleaned.csv") %>%
+ac2012 <- read_csv("acfill_wide12_cleaned.csv") %>%
   gather(treatment, flux, -datetime) %>% 
   mutate(flux = as.numeric(flux)) %>% 
   separate(treatment, c("treatment", "block")) %>%
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   filter(datetime >= as.POSIXct("2012-05-01 00:00:00", "MST"))
 
-weather2012 <- rcsv("weather2012.csv") %>%
+weather2012 <- read_csv("weather2012.csv") %>%
   mutate(datetime = round_date(datetime, "hour") %>% force_tz("MST")) %>% 
   select(datetime, airtemp = AirTemp, Rh = RH, windspeed = WindSpd,
     PAR = PAR_A, rain = Rain_mm) %>%  
@@ -128,7 +126,7 @@ weather2012 <- rcsv("weather2012.csv") %>%
   mutate(rain = sum(rain, na.rm = TRUE)) %>% 
   ungroup
 
-soil_temp_moist2012 <- rcsv("SoilMet_1203to1412.csv") %>%
+soil_temp_moist2012 <- read_csv("SoilMet_1203to1412.csv") %>%
   mutate(datetime = round_date(TIMESTAMP, "hour") %>% force_tz("MST")) %>%
   select(datetime, contains("T_5"), contains("T_10"), contains("CVW_2"),
     contains("CSVW_2"), -contains("Peri"),
